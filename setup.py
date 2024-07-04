@@ -9,15 +9,13 @@ class PostInstallCommand(install):
         shell = os.getenv('SHELL')
         if 'zsh' in shell:
             rc_file = os.path.expanduser("~/.zshrc")
-        elif 'bash' in shell:
-            rc_file = os.path.expanduser("~/.bashrc")
         else:
-            print("Unsupported shell. Please add the mug function to your shell config manually.")
+            print("Currently we only support ZSH. Please add the mug function to your shell config manually.")
             return
 
         function_definition = """
 function mug() {
-    if [ "$1" = "start" ]; then
+    if [ "$1" = "--start" ]; then
         {
             mug_core start
             echo "You are now in a mug session. Type 'mug end' to end the session."
@@ -25,23 +23,31 @@ function mug() {
         } || {
             echo "An error occurred while starting the mug session."
         }
-    elif [ "$1" = "end" ]; then
+    elif [ "$1" = "--end" ]; then
         {
             source $(python3 -c "import mug_core; print(mug_core.get_command_unset_path())")
             echo "Ending session."
         } || {
             echo "An error occurred while ending the mug session."
         }
-    else
-        question="$@"
+    elif [ "$1" = "--help" ]; then
+        echo "Usage: mug [--start | --end | --help | --version | --session | --llm]"
+    elif [ "$1" = "--version" ]; then
+        version=$(python3 -c "import mug_core; print(mug_core.__version__)")
+        echo "mug version $version"
+    elif [ "$1" = "--session" ]; then
+        echo "Session log: $SESSION_FILE"
+    elif [ "$1" = "--llm" ]; then
+        question="${@:2}"
         {
             mug_core "$question"
         } || {
             echo "An error occurred while asking the question: $question"
         }
+    else
+        execute_with_redirection "$@"
     fi
 }
-
 """
         with open(rc_file, 'a') as f:
             f.write(function_definition)

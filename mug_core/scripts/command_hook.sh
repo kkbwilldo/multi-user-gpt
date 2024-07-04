@@ -43,7 +43,6 @@ if os.path.exists(config_path):
             print(session_log_name)
 ')
 
-
 NO_AWS=$(python3 -c '
 import json
 import os
@@ -59,37 +58,35 @@ if os.path.exists(config_path):
 if [ -f "$SESSION_FILE" ]; then
     function execute_with_redirection() {
         {
+            if [ -z "$HOST" ]; then
+                export HOST=$(hostname)
+                echo "---------------------------- host: $(hostname) ----------------------------" >> "$SESSION_FILE"
+            elif [ "$HOST" != "$(hostname)" ]; then
+                export HOST=$(hostname)
+                echo "------------- host: $(hostname) -------------" >> "$SESSION_FILE"
+            fi
+
             if [ "$NO_AWS" = "false" ]; then
-                # Sync from S3 to local
                 sync_from_s3 "$BUCKET_NAME" "$S3_KEY" "$SESSION_FILE"
             fi
 
-            # Log hostname and timestamp
-            echo "------------- host: $(hostname) -------------" >> "$SESSION_FILE"
-            echo "Timestamp: $(date)" >> "$SESSION_FILE"
+            echo "Input:" >> "$SESSION_FILE"
+            echo "- $@" >> "$SESSION_FILE"
+            echo "" >> "$SESSION_FILE"
 
-            # Capture stdin
-            echo "Input: $@" >> "$SESSION_FILE"
-
-            # Capture STDOUT and STDERR and append to SESSION_FILE
-            { "$@" 2>&1 | tee -a "$SESSION_FILE"; }
-            # { eval "$@" 2>&1 1>&3 3>&- | tee -a "$SESSION_FILE"; } 3>&1
+            {
+                echo "Output:" >> "$SESSION_FILE"
+                { "$@" |& tee -a "$SESSION_FILE"; } >> "$SESSION_FILE"
+                echo "" >> "$SESSION_FILE"
+            }
 
             if [ "$NO_AWS" = "false" ]; then
-                # Sync local to S3
                 sync_to_s3 "$BUCKET_NAME" "$SESSION_FILE" "$S3_KEY"
             fi
 
         } || {
             echo "An error occurred during the execution of: $@"
         }
-    }
-
-    # preexec 함수는 명령어가 실행되기 전에 호출됩니다.
-    function preexec() {
-        # 마지막으로 입력된 명령어를 가져옵니다.
-        local last_command=$(fc -ln -1)
-        execute_with_redirection $last_command
     }
 
     function sync_to_s3() {
@@ -103,3 +100,4 @@ else
     echo "Session file not found."
     exit 1
 fi
+
